@@ -7,6 +7,7 @@ from app.db.session import get_session
 from app.models.user import User
 from app.schemas.user import RegisterIn, LoginIn, TokenOut, UserOut
 from app.core.security import hash_password, verify_password, create_access_token
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -47,3 +48,14 @@ async def login(data: LoginIn, session: AsyncSession = Depends(get_session)):
 
     token = create_access_token(subject=u.id)
     return TokenOut(access_token=token)
+
+
+@router.get("/me", response_model=UserOut)
+async def me(current_user: User = Depends(get_current_user)):
+    return UserOut(
+        id=current_user.id,
+        username=current_user.username,
+        nickname=current_user.nickname,
+        avatar_url=current_user.avatar_url,
+        status=current_user.status,
+    )
