@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field,ConfigDict
 
 class RegisterIn(BaseModel):
     username: str = Field(min_length=3, max_length=32)
@@ -17,6 +17,9 @@ class TokenOut(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
-    nickname: str | None = None
+    nickname: str
     avatar_url: str | None = None
     status: int
+    balance: float = 0   # 新增：余额
+
+    model_config = ConfigDict(from_attributes=True)

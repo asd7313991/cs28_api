@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,11 +8,13 @@ from app.schemas.user import RegisterIn, LoginIn, TokenOut, UserOut
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.auth import get_current_user
 
+
 router = APIRouter(prefix="/api/user", tags=["user"])
 
-@router.post("/register", response_model=UserOut)
+
+@router.post("/register", response_model=UserOut, status_code=201)
 async def register(data: RegisterIn, session: AsyncSession = Depends(get_session)):
-    # 检查重名
+    # 检查用户名是否存在
     exists = await session.scalar(select(User).where(User.username == data.username))
     if exists:
         raise HTTPException(status_code=400, detail="用户名已存在")
@@ -24,38 +25,27 @@ async def register(data: RegisterIn, session: AsyncSession = Depends(get_session
         nickname=data.nickname or data.username,
         status=1,
         is_robot=False,
+        balance=0,  # 注册时初始化余额
     )
     session.add(u)
-    await session.flush()  # 获取 id
     await session.commit()
-    return UserOut(
-        id=u.id,
-        username=u.username,
-        nickname=u.nickname,
-        avatar_url=u.avatar_url,
-        status=u.status,
-    )
+    await session.refresh(u)
+
+    return UserOut.model_validate(u)
+
 
 @router.post("/login", response_model=TokenOut)
 async def login(data: LoginIn, session: AsyncSession = Depends(get_session)):
     u = await session.scalar(select(User).where(User.username == data.username))
-    if not u:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
-    if not verify_password(data.password, u.password_hash):
+    if not u or not verify_password(data.password, u.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     if u.status != 1:
         raise HTTPException(status_code=403, detail="用户已禁用")
 
-    token = create_access_token(subject=u.id)
+    token = create_access_token(subject=str(u.id))
     return TokenOut(access_token=token)
 
 
-@router.get("/me", response_model=UserOut)
-async def me(current_user: User = Depends(get_current_user)):
-    return UserOut(
-        id=current_user.id,
-        username=current_user.username,
-        nickname=current_user.nickname,
-        avatar_url=current_user.avatar_url,
-        status=current_user.status,
-    )
+@router.get("/profile", response_model=UserOut)
+async def profile(current_user: User = Depends(get_current_user)):
+    return UserOut.model_validate(current_user)

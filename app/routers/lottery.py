@@ -8,6 +8,7 @@ from app.db.session import AsyncSession, get_session
 from app.constants import k_current_issue, k_last_result, k_history
 from app.models.issue import Issue
 from app.schemas.lottery import CurrentIssueResp, HistoryResp, HistoryItem
+from app.models.play_type import PlayType  # 你的 ORM 模型
 
 router = APIRouter(prefix="/api/lottery", tags=["lottery"])
 
@@ -63,6 +64,23 @@ async def history(code: str, limit: int = 30):
             continue
     # 不要反转：因为我们保证了 Redis 列表就是新→旧
     return {"code": code, "list": items}
+
+@router.get("/odds")
+async def get_odds(
+        code: str = Query(..., description="彩种代码"),
+        session: AsyncSession = Depends(get_session),
+):
+    stmt = select(
+        PlayType.name,     # 展示名称
+        PlayType.odds,
+        PlayType.status
+    ).where(PlayType.lottery_code == code)
+    rows = (await session.execute(stmt)).all()
+    return [
+        { "name": k.name, "odds": k.odds, "status": k.status}
+        for k in rows
+    ]
+
 
 
 
